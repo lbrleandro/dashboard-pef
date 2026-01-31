@@ -2,6 +2,9 @@ import pandas as pd
 import numpy as np
 import streamlit as st
 
+# =========================
+# CONFIGURAÇÃO
+# =========================
 st.set_page_config(
     page_title="Dashboard de Execução do PEF",
     layout="wide"
@@ -28,12 +31,14 @@ mes_escolhido = st.selectbox(
 df = df[df["MES"] == mes_escolhido].copy()
 
 # =========================
-# REGRAS DE COR
+# REGRAS DE COR DAS SEMANAS
 # =========================
 def cor_semana_1(row):
     return "green" if row["PREV_SEM_1"] >= row["PEF_DO_MES"] else "red"
 
 def cor_semana(row, atual, anterior):
+    if pd.isna(row[atual]) or pd.isna(row[anterior]):
+        return "black"
     return "green" if row[atual] >= row[anterior] else "red"
 
 df["COR_SEM_1"] = df.apply(cor_semana_1, axis=1)
@@ -42,10 +47,18 @@ df["COR_SEM_3"] = df.apply(lambda r: cor_semana(r, "PREV_SEM_3", "PREV_SEM_2"), 
 df["COR_SEM_4"] = df.apply(lambda r: cor_semana(r, "PREV_SEM_4", "PREV_SEM_3"), axis=1)
 
 # =========================
-# RISCO DE GLOSA
+# RISCO DE GLOSA (PRIORIDADE)
 # =========================
+def risco_por_prioridade(row):
+    for col in ["RISCO_SEM_4", "RISCO_SEM_3", "RISCO_SEM_2", "RISCO_SEM_1"]:
+        if pd.notna(row[col]) and str(row[col]).strip() != "":
+            return row[col]
+    return "NÃO"
+
+df["RISCO_FINAL"] = df.apply(risco_por_prioridade, axis=1)
+
 df["RISCO_TXT"] = np.where(
-    df["RISCO_CONSOLIDADO"] == "SIM",
+    df["RISCO_FINAL"] == "SIM",
     "🔴 SIM",
     "🟢 NÃO"
 )
@@ -60,7 +73,7 @@ df["RESULTADO_PEF"] = np.where(
 )
 
 # =========================
-# TABELA (HTML)
+# TABELA FINAL (HTML)
 # =========================
 html = """
 <table style="width:100%; border-collapse:collapse;">
