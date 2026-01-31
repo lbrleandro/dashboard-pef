@@ -2,107 +2,94 @@ import pandas as pd
 import numpy as np
 import streamlit as st
 
-st.set_page_config(page_title="Dashboard de Execução PEF", layout="wide")
+st.set_page_config(
+    page_title="Dashboard de Execução do PEF",
+    layout="wide"
+)
 
 st.title("📊 Dashboard de Execução do PEF")
 
-# =============================
+# =========================
 # LEITURA DA BASE
-# =============================
+# =========================
 df = pd.read_excel("BASE_DE_TESTE_PYTHON_READY.xlsx")
-
 df["MES"] = pd.to_datetime(df["MES"])
 
-# =============================
-# FILTRO
-# =============================
+# =========================
+# FILTRO DE MÊS
+# =========================
 meses = sorted(df["MES"].unique())
-
 mes_escolhido = st.selectbox(
     "Selecione o mês",
     meses,
     format_func=lambda x: x.strftime("%m/%Y")
 )
 
-df_mes = df[df["MES"] == mes_escolhido].copy()
+df = df[df["MES"] == mes_escolhido].copy()
 
-# =============================
-# RISCO CONSOLIDADO
-# =============================
-def valor_valido(x):
-    return pd.notna(x) and str(x).strip() != ""
+# =========================
+# REGRAS DE COR
+# =========================
+def cor_semana_1(row):
+    return "green" if row["PREV_SEM_1"] >= row["PEF_DO_MES"] else "red"
 
-def risco_consolidado(row):
-    if valor_valido(row["RISCO_SEM_4"]):
-        return row["RISCO_SEM_4"], "SEM_4"
-    elif valor_valido(row["RISCO_SEM_3"]):
-        return row["RISCO_SEM_3"], "SEM_3"
-    elif valor_valido(row["RISCO_SEM_2"]):
-        return row["RISCO_SEM_2"], "SEM_2"
-    elif valor_valido(row["RISCO_SEM_1"]):
-        return row["RISCO_SEM_1"], "SEM_1"
-    else:
-        return "NÃO", None
+def cor_semana(row, atual, anterior):
+    return "green" if row[atual] >= row[anterior] else "red"
 
-df_mes[["RISCO_CONSOLIDADO", "SEMANA_RISCO"]] = (
-    df_mes.apply(risco_consolidado, axis=1, result_type="expand")
+df["COR_SEM_1"] = df.apply(cor_semana_1, axis=1)
+df["COR_SEM_2"] = df.apply(lambda r: cor_semana(r, "PREV_SEM_2", "PREV_SEM_1"), axis=1)
+df["COR_SEM_3"] = df.apply(lambda r: cor_semana(r, "PREV_SEM_3", "PREV_SEM_2"), axis=1)
+df["COR_SEM_4"] = df.apply(lambda r: cor_semana(r, "PREV_SEM_4", "PREV_SEM_3"), axis=1)
+
+# =========================
+# RISCO DE GLOSA
+# =========================
+df["RISCO_TXT"] = np.where(
+    df["RISCO_CONSOLIDADO"] == "SIM",
+    "🔴 SIM",
+    "🟢 NÃO"
 )
 
-# =============================
-# STATUS PEF FINAL
-# =============================
-df_mes["STATUS_PEF_FINAL"] = np.where(
-    (df_mes["PREV_SEM_4"] >= df_mes["PEF_DO_MES"]) & pd.notna(df_mes["PREV_SEM_4"]),
-    "DENTRO DO PLANEJADO",
-    "FORA DO PLANEJADO"
+# =========================
+# AVALIAÇÃO MENSAL
+# =========================
+df["RESULTADO_PEF"] = np.where(
+    df["PREV_SEM_4"] >= df["PEF_DO_MES"],
+    "DENTRO DO PREVISTO",
+    "FORA DO PREVISTO"
 )
 
-# =============================
-# KPI EXECUÇÃO FINAL
-# =============================
-df_mes["KPI_EXEC_FINAL_PCT"] = np.where(
-    (df_mes["PEF_DO_MES"] > 0) & pd.notna(df_mes["PREV_SEM_4"]),
-    (df_mes["PREV_SEM_4"] / df_mes["PEF_DO_MES"]) * 100,
-    np.nan
-).round(2)
+# =========================
+# TABELA (HTML)
+# =========================
+html = """
+<table style="width:100%; border-collapse:collapse;">
+<tr style="background:#e6e6e6;">
+    <th>Contratos</th>
+    <th>Semana 1</th>
+    <th>Semana 2</th>
+    <th>Semana 3</th>
+    <th>Semana 4</th>
+    <th>Risco de Glosa</th>
+    <th>Previsão do mês - PEF</th>
+    <th>Resultado do Planejamento PEF</th>
+</tr>
+"""
 
-# =============================
-# KPIs TOPO
-# =============================
-col1, col2, col3 = st.columns(3)
+for _, r in df.iterrows():
+    html += f"""
+    <tr>
+        <td>{r['CONTRATO_SUPER_1']}</td>
+        <td style="color:{r['COR_SEM_1']}">R$ {r['PREV_SEM_1']:,.2f}</td>
+        <td style="color:{r['COR_SEM_2']}">R$ {r['PREV_SEM_2']:,.2f}</td>
+        <td style="color:{r['COR_SEM_3']}">R$ {r['PREV_SEM_3']:,.2f}</td>
+        <td style="color:{r['COR_SEM_4']}">R$ {r['PREV_SEM_4']:,.2f}</td>
+        <td>{r['RISCO_TXT']}</td>
+        <td>R$ {r['PEF_DO_MES']:,.2f}</td>
+        <td>{r['RESULTADO_PEF']}</td>
+    </tr>
+    """
 
-col1.metric(
-    "Execução Média (%)",
-    f"{df_mes['KPI_EXEC_FINAL_PCT'].mean():.1f}%"
-)
+html += "</table>"
 
-col2.metric(
-    "Contratos em Risco",
-    int((df_mes["RISCO_CONSOLIDADO"] == "SIM").sum())
-)
-
-col3.metric(
-    "Contratos Fora do Planejado",
-    int((df_mes["STATUS_PEF_FINAL"] == "FORA DO PLANEJADO").sum())
-)
-
-st.divider()
-
-# =============================
-# TABELA
-# =============================
-st.subheader("📋 Visão por Contrato")
-
-st.dataframe(
-    df_mes[
-        [
-            "CONTRATO_SUPER_1",
-            "PEF_DO_MES",
-            "PREV_SEM_4",
-            "KPI_EXEC_FINAL_PCT",
-            "STATUS_PEF_FINAL",
-            "RISCO_CONSOLIDADO"
-        ]
-    ].sort_values("KPI_EXEC_FINAL_PCT", ascending=False),
-    use_container_width=True
-)
+st.markdown(html, unsafe_allow_html=True)
