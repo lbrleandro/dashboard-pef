@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import streamlit as st
+import streamlit.components.v1 as components
 
 # =====================================================
 # CONFIGURAÇÃO
@@ -25,12 +26,16 @@ mes_escolhido = st.selectbox(
 df = df[df["MES"] == mes_escolhido].copy()
 
 # =====================================================
-# CORES DAS SEMANAS
+# REGRAS DE COR – SEMANAS
 # =====================================================
 def cor_semana_1(row):
+    if pd.isna(row["PREV_SEM_1"]) or pd.isna(row["PEF_DO_MES"]):
+        return "black"
     return "green" if row["PREV_SEM_1"] >= row["PEF_DO_MES"] else "red"
 
 def cor_semana(row, atual, anterior):
+    if pd.isna(row[atual]) or pd.isna(row[anterior]):
+        return "black"
     return "green" if row[atual] >= row[anterior] else "red"
 
 df["COR_SEM_1"] = df.apply(cor_semana_1, axis=1)
@@ -60,7 +65,7 @@ df["RESULTADO_PEF"] = np.where(
 )
 
 # =====================================================
-# MONTAGEM DO HTML (PASSO A PASSO)
+# HTML DA TABELA (REAL)
 # =====================================================
 rows_html = ""
 
@@ -78,7 +83,7 @@ for _, r in df.iterrows():
     </tr>
     """
 
-table_html = f"""
+html = f"""
 <style>
 table {{
     width: 100%;
@@ -92,7 +97,7 @@ th {{
 }}
 td {{
     padding: 8px;
-    border-bottom: 1px solid #444;
+    border-bottom: 1px solid #555;
 }}
 </style>
 
@@ -111,4 +116,4 @@ td {{
 </table>
 """
 
-st.markdown(table_html, unsafe_allow_html=True)
+components.html(html, height=600, scrolling=True)
