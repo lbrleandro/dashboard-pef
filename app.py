@@ -2,9 +2,9 @@ import pandas as pd
 import numpy as np
 import streamlit as st
 
-# =========================
-# CONFIGURAÇÃO
-# =========================
+# =====================================================
+# CONFIGURAÇÃO GERAL
+# =====================================================
 st.set_page_config(
     page_title="Dashboard de Execução do PEF",
     layout="wide"
@@ -12,16 +12,17 @@ st.set_page_config(
 
 st.title("📊 Dashboard de Execução do PEF")
 
-# =========================
+# =====================================================
 # LEITURA DA BASE
-# =========================
+# =====================================================
 df = pd.read_excel("BASE_DE_TESTE_PYTHON_READY.xlsx")
 df["MES"] = pd.to_datetime(df["MES"])
 
-# =========================
+# =====================================================
 # FILTRO DE MÊS
-# =========================
+# =====================================================
 meses = sorted(df["MES"].unique())
+
 mes_escolhido = st.selectbox(
     "Selecione o mês",
     meses,
@@ -30,10 +31,12 @@ mes_escolhido = st.selectbox(
 
 df = df[df["MES"] == mes_escolhido].copy()
 
-# =========================
-# REGRAS DE COR DAS SEMANAS
-# =========================
+# =====================================================
+# REGRAS DE COR – AVALIAÇÃO SEMANAL
+# =====================================================
 def cor_semana_1(row):
+    if pd.isna(row["PREV_SEM_1"]) or pd.isna(row["PEF_DO_MES"]):
+        return "black"
     return "green" if row["PREV_SEM_1"] >= row["PEF_DO_MES"] else "red"
 
 def cor_semana(row, atual, anterior):
@@ -46,9 +49,9 @@ df["COR_SEM_2"] = df.apply(lambda r: cor_semana(r, "PREV_SEM_2", "PREV_SEM_1"), 
 df["COR_SEM_3"] = df.apply(lambda r: cor_semana(r, "PREV_SEM_3", "PREV_SEM_2"), axis=1)
 df["COR_SEM_4"] = df.apply(lambda r: cor_semana(r, "PREV_SEM_4", "PREV_SEM_3"), axis=1)
 
-# =========================
-# RISCO DE GLOSA (PRIORIDADE)
-# =========================
+# =====================================================
+# RISCO DE GLOSA – REGRA DE PRIORIDADE
+# =====================================================
 def risco_por_prioridade(row):
     for col in ["RISCO_SEM_4", "RISCO_SEM_3", "RISCO_SEM_2", "RISCO_SEM_1"]:
         if pd.notna(row[col]) and str(row[col]).strip() != "":
@@ -63,21 +66,39 @@ df["RISCO_TXT"] = np.where(
     "🟢 NÃO"
 )
 
-# =========================
-# AVALIAÇÃO MENSAL
-# =========================
+# =====================================================
+# AVALIAÇÃO MENSAL – LINHA A LINHA
+# =====================================================
 df["RESULTADO_PEF"] = np.where(
     df["PREV_SEM_4"] >= df["PEF_DO_MES"],
     "DENTRO DO PREVISTO",
     "FORA DO PREVISTO"
 )
 
-# =========================
-# TABELA FINAL (HTML)
-# =========================
-html = """
-<table style="width:100%; border-collapse:collapse;">
-<tr style="background:#e6e6e6;">
+# =====================================================
+# RENDERIZAÇÃO DA TABELA (HTML)
+# =====================================================
+st.markdown(
+    f"""
+<style>
+table {{
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}}
+th {{
+    background-color: #e6e6e6;
+    padding: 8px;
+    text-align: left;
+}}
+td {{
+    padding: 8px;
+    border-bottom: 1px solid #444;
+}}
+</style>
+
+<table>
+<tr>
     <th>Contratos</th>
     <th>Semana 1</th>
     <th>Semana 2</th>
@@ -87,22 +108,24 @@ html = """
     <th>Previsão do mês - PEF</th>
     <th>Resultado do Planejamento PEF</th>
 </tr>
-"""
 
-for _, r in df.iterrows():
-    html += f"""
+{''.join([
+    f'''
     <tr>
-        <td>{r['CONTRATO_SUPER_1']}</td>
-        <td style="color:{r['COR_SEM_1']}">R$ {r['PREV_SEM_1']:,.2f}</td>
-        <td style="color:{r['COR_SEM_2']}">R$ {r['PREV_SEM_2']:,.2f}</td>
-        <td style="color:{r['COR_SEM_3']}">R$ {r['PREV_SEM_3']:,.2f}</td>
-        <td style="color:{r['COR_SEM_4']}">R$ {r['PREV_SEM_4']:,.2f}</td>
-        <td>{r['RISCO_TXT']}</td>
-        <td>R$ {r['PEF_DO_MES']:,.2f}</td>
-        <td>{r['RESULTADO_PEF']}</td>
+        <td>{r["CONTRATO_SUPER_1"]}</td>
+        <td style="color:{r["COR_SEM_1"]}">R$ {r["PREV_SEM_1"]:,.2f}</td>
+        <td style="color:{r["COR_SEM_2"]}">R$ {r["PREV_SEM_2"]:,.2f}</td>
+        <td style="color:{r["COR_SEM_3"]}">R$ {r["PREV_SEM_3"]:,.2f}</td>
+        <td style="color:{r["COR_SEM_4"]}">R$ {r["PREV_SEM_4"]:,.2f}</td>
+        <td>{r["RISCO_TXT"]}</td>
+        <td>R$ {r["PEF_DO_MES"]:,.2f}</td>
+        <td>{r["RESULTADO_PEF"]}</td>
     </tr>
-    """
+    '''
+    for _, r in df.iterrows()
+])}
 
-html += "</table>"
-
-st.markdown(html, unsafe_allow_html=True)
+</table>
+""",
+    unsafe_allow_html=True
+)
