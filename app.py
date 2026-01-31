@@ -89,15 +89,27 @@ table {{
     width: 100%;
     border-collapse: collapse;
     font-size: 14px;
+    background-color: #ffffff;
+    color: #000000;
 }}
+
 th {{
-    background-color: #e6e6e6;
+    background-color: #f2f2f2;
     padding: 8px;
     text-align: left;
+    color: #000000;
+    border-bottom: 1px solid #cccccc;
 }}
+
 td {{
     padding: 8px;
-    border-bottom: 1px solid #555;
+    border-bottom: 1px solid #dddddd;
+    background-color: #ffffff;
+    color: #000000;
+}}
+
+tr:hover {{
+    background-color: #f9f9f9;
 }}
 </style>
 
